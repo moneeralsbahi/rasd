@@ -33,6 +33,11 @@ jobs:
           Expand-Archive -Path 'almuneer-windows-build-source.zip' -DestinationPath 'build' -Force
           if (!(Test-Path 'build/package.json')) { throw 'Invalid source archive: package.json missing' }
 
+      - name: Pin Electron version for reproducible packaging
+        working-directory: build
+        shell: pwsh
+        run: npm pkg set devDependencies.electron=38.0.0 -w @almuneer/desktop
+
       - name: Install dependencies and create lockfile
         working-directory: build
         shell: pwsh
@@ -58,7 +63,7 @@ jobs:
         shell: pwsh
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npm run build:win -w @almuneer/desktop
+        run: npx electron-builder --projectDir apps/desktop --win nsis --publish never
 
       - name: Verify installer
         shell: pwsh
