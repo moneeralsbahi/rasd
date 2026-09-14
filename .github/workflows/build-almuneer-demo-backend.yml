@@ -1,0 +1,76 @@
+name: Build AlMuneer Demo Backend
+
+on:
+  push:
+    paths:
+      - 'demo-backend/**'
+      - '.github/workflows/build-almuneer-demo-backend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-demo-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Reconstruct demo backend source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p demo-build
+          base64 -d demo-backend/demo-backend.ts.gz.b64 | gzip -dc > demo-build/index.ts
+          test -s demo-build/index.ts
+          grep -q "almuneer-demo-api" demo-build/index.ts
+
+      - name: Prepare package
+        working-directory: demo-build
+        shell: bash
+        run: |
+          cat > package.json <<'JSON'
+          {
+            "name":"almuneer-demo-function",
+            "private":true,
+            "type":"module",
+            "dependencies":{"pg":"8.16.3"},
+            "devDependencies":{"esbuild":"0.25.9"}
+          }
+          JSON
+          npm install --no-audit --no-fund
+
+      - name: Bundle Neon Function
+        working-directory: demo-build
+        shell: bash
+        run: |
+          npx esbuild index.ts --bundle --platform=node --format=esm --target=node24 --minify --outfile=dist/index.js
+          test -s dist/index.js
+          grep -q "almuneer-demo-api" dist/index.js
+          cd dist
+          zip -9 ../almuneer-demo-function.zip index.js
+
+      - name: Build evidence
+        working-directory: demo-build
+        shell: bash
+        run: |
+          sha256sum almuneer-demo-function.zip > almuneer-demo-function.sha256
+          node --check dist/index.js
+          ls -lh almuneer-demo-function.zip dist/index.js
+
+      - name: Upload function bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Almuneer-Demo-Backend-Function
+          path: |
+            demo-build/almuneer-demo-function.zip
+            demo-build/almuneer-demo-function.sha256
+          if-no-files-found: error
+          retention-days: 30
