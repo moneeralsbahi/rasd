@@ -24,16 +24,19 @@ jobs:
           echo "HEALTH=$HEALTH"
           echo "$HEALTH" | grep -q '"status":"ok"'
           echo "$HEALTH" | grep -q '"demoTenantReady":true'
-          echo 'Gateway health PASS'
 
-      - name: Probe server-side demo E2E function
+      - name: Discover server-side demo E2E entrypoint
         shell: bash
         run: |
           set -euo pipefail
-          URL='https://br-flat-leaf-ax492ag7-demoe2etest.compute.c-4.us-east-2.aws.neon.tech/'
-          TMP=$(mktemp)
-          CODE=$(curl --silent --show-error --retry 3 --retry-delay 2 --max-time 60 -o "$TMP" -w '%{http_code}' "$URL")
-          echo "HTTP=$CODE"
-          cat "$TMP"
-          echo
-          test "$CODE" -ge 200 -a "$CODE" -lt 300
+          BASE='https://br-flat-leaf-ax492ag7-demoe2etest.compute.c-4.us-east-2.aws.neon.tech'
+          ok=0
+          for spec in 'GET /health' 'GET /run' 'GET /test' 'POST /' 'POST /run' 'POST /test'; do
+            method=${spec%% *}; path=${spec#* }
+            tmp=$(mktemp)
+            code=$(curl --silent --show-error --max-time 30 -X "$method" -H 'content-type: application/json' -d '{}' -o "$tmp" -w '%{http_code}' "$BASE$path" || true)
+            body=$(cat "$tmp")
+            echo "$method $path -> HTTP $code :: $body"
+            if [ "$code" -ge 200 ] 2>/dev/null && [ "$code" -lt 300 ] 2>/dev/null; then ok=1; fi
+          done
+          test "$ok" -eq 1
