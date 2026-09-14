@@ -1,4 +1,4 @@
-name: Neon Backend Smoke Test
+name: Neon Backend Acceptance Probe
 
 on:
   push:
@@ -11,17 +11,29 @@ permissions:
   contents: read
 
 jobs:
-  smoke:
+  probe:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Test Neon function and database
+      - name: Verify connected demo backend
         shell: bash
         run: |
           set -euo pipefail
-          URL='https://br-red-mode-axhaubax-depstest.compute.c-4.us-east-2.aws.neon.tech/'
-          echo "Testing $URL"
-          BODY=$(curl --fail --silent --show-error --retry 4 --retry-delay 2 --max-time 30 "$URL")
-          echo "$BODY"
-          echo "$BODY" | grep -q '"status":"ok"'
-          echo "$BODY" | grep -q '"db":1'
+          API='https://br-flat-leaf-ax492ag7-almuneergw.compute.c-4.us-east-2.aws.neon.tech'
+          HEALTH=$(curl --fail --silent --show-error --retry 4 --retry-delay 2 --max-time 30 "$API/health")
+          echo "HEALTH=$HEALTH"
+          echo "$HEALTH" | grep -q '"status":"ok"'
+          echo "$HEALTH" | grep -q '"demoTenantReady":true'
+          echo 'Gateway health PASS'
+
+      - name: Probe server-side demo E2E function
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://br-flat-leaf-ax492ag7-demoe2etest.compute.c-4.us-east-2.aws.neon.tech/'
+          TMP=$(mktemp)
+          CODE=$(curl --silent --show-error --retry 3 --retry-delay 2 --max-time 60 -o "$TMP" -w '%{http_code}' "$URL")
+          echo "HTTP=$CODE"
+          cat "$TMP"
+          echo
+          test "$CODE" -ge 200 -a "$CODE" -lt 300
