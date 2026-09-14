@@ -3,12 +3,12 @@ name: Build AlMuneer Demo Backend
 on:
   push:
     paths:
-      - 'demo-backend/**'
+      - 'demo-backend/demo-backend.ts.gz.b64'
       - '.github/workflows/build-almuneer-demo-backend.yml'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-demo-backend:
@@ -64,6 +64,23 @@ jobs:
           sha256sum almuneer-demo-function.zip > almuneer-demo-function.sha256
           node --check dist/index.js
           ls -lh almuneer-demo-function.zip dist/index.js
+
+      - name: Publish runtime bundle to repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p demo-backend/dist
+          cp demo-build/dist/index.js demo-backend/dist/index.js
+          cp demo-build/almuneer-demo-function.sha256 demo-backend/dist/almuneer-demo-function.sha256
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add demo-backend/dist/index.js demo-backend/dist/almuneer-demo-function.sha256
+          if git diff --cached --quiet; then
+            echo 'Published runtime bundle is unchanged.'
+          else
+            git commit -m 'Publish AlMuneer demo backend runtime bundle'
+            git push
+          fi
 
       - name: Upload function bundle
         uses: actions/upload-artifact@v4
