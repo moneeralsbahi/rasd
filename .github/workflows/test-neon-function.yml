@@ -1,0 +1,17 @@
+name: Test Neon Function Runtime
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/test-neon-function.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Neon pg probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 10 --retry-delay 2 --max-time 30 'https://br-broad-glitter-axutqwuv-almuneerpg.compute.c-4.us-east-2.aws.neon.tech/' | tee response.json
+          grep -q '"ok":true' response.json
+          grep -q '"pg":"function"' response.json
