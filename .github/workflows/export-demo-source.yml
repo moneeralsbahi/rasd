@@ -1,4 +1,4 @@
-name: Export AlMuneer Demo Backend Source
+name: Export AlMuneer Demo Runtime
 
 on:
   push:
@@ -16,18 +16,18 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Reconstruct source
+      - name: Verify published runtime
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p exported
-          base64 -d demo-backend/demo-backend.ts.gz.b64 | gzip -dc > exported/index.ts
-          test -s exported/index.ts
-          wc -l exported/index.ts
-      - name: Upload source artifact
+          test -s demo-backend/dist/index.js
+          node --check demo-backend/dist/index.js
+          grep -q 'almuneer-demo-api' demo-backend/dist/index.js
+          wc -c demo-backend/dist/index.js
+      - name: Upload runtime artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Almuneer-Demo-Backend-Source
-          path: exported/index.ts
+          name: Almuneer-Demo-Backend-Runtime
+          path: demo-backend/dist/index.js
           if-no-files-found: error
           retention-days: 1
