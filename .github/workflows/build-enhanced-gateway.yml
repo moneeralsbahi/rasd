@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./gateway-build/node_modules/.bin/esbuild demo-backend/enhanced-gateway.ts --bundle --platform=node --format=esm --target=node24 --minify --banner:js="import {createRequire as __createRequire} from 'node:module'; const require=__createRequire('/tmp/almuneer-enhanced-gateway.cjs');" --outfile=gateway-build/index.js
+          ./gateway-build/node_modules/.bin/esbuild demo-backend/enhanced-gateway.ts --bundle --platform=node --format=esm --target=node24 --minify --node-path=gateway-build/node_modules --banner:js="import {createRequire as __createRequire} from 'node:module'; const require=__createRequire('/tmp/almuneer-enhanced-gateway.cjs');" --outfile=gateway-build/index.js
           node --check gateway-build/index.js
           grep -q 'لا توجد أسئلة تدريب مطابقة' gateway-build/index.js
           grep -q 'student_error_bank' gateway-build/index.js
