@@ -1,0 +1,10 @@
+{
+  "name": "almuneer-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "المُنيّر - منصة الاختبارات والتدريب الإلكتروني",
+  "engines": {"node": ">=22"},
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {"build": "npm run build --workspaces --if-present"},
+  "devDependencies": {"@types/node": "^22.15.30", "typescript": "^5.8.3"}
+}
