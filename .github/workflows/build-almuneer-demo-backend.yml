@@ -51,9 +51,10 @@ jobs:
         working-directory: demo-build
         shell: bash
         run: |
-          npx esbuild index.ts --bundle --platform=node --format=esm --target=node24 --minify --outfile=dist/index.js
+          npx esbuild index.ts --bundle --platform=node --format=esm --target=node24 --minify --banner:js="import {createRequire as __createRequire} from 'node:module'; const require=__createRequire('/tmp/almuneer-demo-runtime.cjs');" --outfile=dist/index.js
           test -s dist/index.js
           grep -q "almuneer-demo-api" dist/index.js
+          grep -q "__createRequire" dist/index.js
           cd dist
           zip -9 ../almuneer-demo-function.zip index.js
 
