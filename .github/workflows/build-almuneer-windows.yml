@@ -37,13 +37,15 @@ jobs:
           if ($cors.StatusCode -lt 200 -or $cors.StatusCode -ge 300) { throw 'CORS preflight returned non-success status' }
           $acao = [string]$cors.Headers['Access-Control-Allow-Origin']
           if ([string]::IsNullOrWhiteSpace($acao)) { throw 'CORS Access-Control-Allow-Origin header missing' }
+          $body = @{ identifier='__almuneer_smoke_invalid__'; password='__invalid__' } | ConvertTo-Json -Compress
           try {
-            Invoke-WebRequest -Uri "$env:ALMUNEER_DEMO_API/api/v1/admin/students?page=1&pageSize=1" -Method Get -TimeoutSec 60 | Out-Null
-            throw 'Protected admin route unexpectedly allowed anonymous access'
+            Invoke-WebRequest -Uri "$env:ALMUNEER_DEMO_API/api/v1/auth/admin/login" -Method Post -ContentType 'application/json' -Body $body -TimeoutSec 60 | Out-Null
+            throw 'Invalid credentials were unexpectedly accepted'
           } catch {
-            if ($_.Exception.Response.StatusCode.value__ -ne 401) { throw }
+            $status = $_.Exception.Response.StatusCode.value__
+            if ($status -ne 401) { throw "Auth endpoint smoke test expected 401 but received $status" }
           }
-          Write-Host "Demo backend PASS: health, CORS, protected-route auth gate"
+          Write-Host "Demo backend PASS: health, CORS, authentication route"
 
       - name: Extract approved Windows build source
         shell: pwsh
