@@ -1,0 +1,33 @@
+name: Export AlMuneer Demo Backend Source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/export-demo-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p exported
+          base64 -d demo-backend/demo-backend.ts.gz.b64 | gzip -dc > exported/index.ts
+          test -s exported/index.ts
+          wc -l exported/index.ts
+      - name: Upload source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Almuneer-Demo-Backend-Source
+          path: exported/index.ts
+          if-no-files-found: error
+          retention-days: 1
