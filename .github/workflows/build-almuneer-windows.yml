@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 env:
-  ALMUNEER_DEMO_API: https://br-flat-leaf-ax492ag7-almuneerdemo.compute.c-4.us-east-2.aws.neon.tech
+  ALMUNEER_DEMO_API: https://br-flat-leaf-ax492ag7-almuneergw.compute.c-4.us-east-2.aws.neon.tech
 
 jobs:
   windows-installer:
@@ -101,7 +101,7 @@ jobs:
           $html = Get-Content 'build/apps/web/dist/index.html' -Raw
           if ($html -match 'src="/assets/' -or $html -match 'href="/assets/') { throw 'Web assets are not file-protocol relative' }
           $js = (Get-ChildItem 'build/apps/web/dist/assets' -Filter '*.js' | Get-Content -Raw) -join "`n"
-          if (!$js.Contains('br-flat-leaf-ax492ag7-almuneerdemo.compute.c-4.us-east-2.aws.neon.tech')) { throw 'Connected API URL missing from Web bundle' }
+          if (!$js.Contains('br-flat-leaf-ax492ag7-almuneergw.compute.c-4.us-east-2.aws.neon.tech')) { throw 'Connected API URL missing from Web bundle' }
 
       - name: Build Windows NSIS installer
         working-directory: build
