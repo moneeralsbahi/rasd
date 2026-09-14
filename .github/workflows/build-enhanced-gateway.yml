@@ -1,0 +1,50 @@
+name: Build AlMuneer Enhanced Demo Gateway
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'demo-backend/enhanced-gateway.ts'
+      - '.github/workflows/build-enhanced-gateway.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install bundler
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p gateway-build
+          cd gateway-build
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund esbuild@0.25.9 pg@8.16.3
+      - name: Bundle gateway
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gateway-build/node_modules/.bin/esbuild demo-backend/enhanced-gateway.ts --bundle --platform=node --format=esm --target=node24 --minify --banner:js="import {createRequire as __createRequire} from 'node:module'; const require=__createRequire('/tmp/almuneer-enhanced-gateway.cjs');" --outfile=gateway-build/index.js
+          node --check gateway-build/index.js
+          grep -q 'لا توجد أسئلة تدريب مطابقة' gateway-build/index.js
+          grep -q 'student_error_bank' gateway-build/index.js
+          cd gateway-build
+          zip -9 enhanced-gateway.zip index.js
+          sha256sum enhanced-gateway.zip > enhanced-gateway.sha256
+      - name: Upload gateway
+        uses: actions/upload-artifact@v4
+        with:
+          name: Almuneer-Enhanced-Demo-Gateway
+          path: |
+            gateway-build/enhanced-gateway.zip
+            gateway-build/enhanced-gateway.sha256
+          if-no-files-found: error
+          retention-days: 7
