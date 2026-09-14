@@ -31,6 +31,7 @@ jobs:
         shell: pwsh
         run: |
           $health = Invoke-RestMethod -Uri "$env:ALMUNEER_DEMO_API/health" -Method Get -TimeoutSec 60
+          Write-Host "Backend service=$($health.service) database=$($health.database) demoTenantReady=$($health.demoTenantReady)"
           if ($health.status -ne 'ok') { throw 'Demo backend health check failed' }
           if ($health.demoTenantReady -ne $true) { throw 'Demo tenant is not ready' }
           $cors = Invoke-WebRequest -Uri "$env:ALMUNEER_DEMO_API/health" -Method Options -Headers @{ Origin='file://'; 'Access-Control-Request-Method'='GET' } -TimeoutSec 60
