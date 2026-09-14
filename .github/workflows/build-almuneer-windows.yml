@@ -23,9 +23,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: 'build/package-lock.json'
-        continue-on-error: true
 
       - name: Extract approved Windows build source
         shell: pwsh
@@ -78,7 +75,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Upload lockfile evidence
+      - name: Upload build evidence
         uses: actions/upload-artifact@v4
         with:
           name: Almuneer-Windows-Build-Evidence
