@@ -34,7 +34,9 @@ jobs:
           if ($health.status -ne 'ok') { throw 'Demo backend health check failed' }
           if ($health.service -ne 'almuneer-demo-api') { throw 'Unexpected demo backend service' }
           $cors = Invoke-WebRequest -Uri "$env:ALMUNEER_DEMO_API/health" -Method Options -Headers @{ Origin='file://'; 'Access-Control-Request-Method'='GET' } -TimeoutSec 60
-          if ($cors.StatusCode -ne 204) { throw 'CORS preflight failed' }
+          if ($cors.StatusCode -lt 200 -or $cors.StatusCode -ge 300) { throw 'CORS preflight returned non-success status' }
+          $acao = [string]$cors.Headers['Access-Control-Allow-Origin']
+          if ([string]::IsNullOrWhiteSpace($acao)) { throw 'CORS Access-Control-Allow-Origin header missing' }
           try {
             Invoke-WebRequest -Uri "$env:ALMUNEER_DEMO_API/api/v1/admin/students?page=1&pageSize=1" -Method Get -TimeoutSec 60 | Out-Null
             throw 'Protected admin route unexpectedly allowed anonymous access'
