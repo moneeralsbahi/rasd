@@ -1,0 +1,82 @@
+name: Build AlMuneer Neon Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'almuneer-backend-source.tar.xz.b64'
+      - '.github/workflows/build-almuneer-neon-backend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Decode and verify backend source
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d almuneer-backend-source.tar.xz.b64 > almuneer-backend-source.tar.xz
+          echo '1b5fa1b694c5e20d13a4ee1dfe5a6e85106265f6152772cfb5f470f43628a33b  almuneer-backend-source.tar.xz' | sha256sum -c -
+          mkdir backend-build
+          tar -xJf almuneer-backend-source.tar.xz -C backend-build
+          test -f backend-build/apps/api/src/neon-function.ts
+          test -f backend-build/apps/api/package.json
+
+      - name: Install dependencies
+        working-directory: backend-build
+        run: npm install --no-audit --no-fund
+
+      - name: Build shared packages
+        working-directory: backend-build
+        run: |
+          npm run build -w @almuneer/types
+          npm run build -w @almuneer/config
+          npm run build -w @almuneer/validation
+
+      - name: TypeScript build API
+        working-directory: backend-build
+        run: npm run build -w @almuneer/api
+
+      - name: Bundle Neon Function
+        working-directory: backend-build
+        run: |
+          mkdir -p neon-dist
+          npx esbuild apps/api/src/neon-function.ts --bundle --platform=node --target=node24 --format=esm --outfile=neon-dist/index.mjs
+          node --check neon-dist/index.mjs
+          test -s neon-dist/index.mjs
+
+      - name: Package Neon Function
+        working-directory: backend-build/neon-dist
+        run: zip -9 neon-function.zip index.mjs
+
+      - name: Build evidence
+        working-directory: backend-build
+        shell: bash
+        run: |
+          sha256sum neon-dist/index.mjs neon-dist/neon-function.zip package-lock.json > neon-dist/SHA256SUMS.txt
+          wc -c neon-dist/index.mjs neon-dist/neon-function.zip
+
+      - name: Upload backend bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Almuneer-Neon-Backend
+          path: |
+            backend-build/neon-dist/neon-function.zip
+            backend-build/neon-dist/index.mjs
+            backend-build/neon-dist/SHA256SUMS.txt
+            backend-build/package-lock.json
+          if-no-files-found: error
+          retention-days: 30
