@@ -11,6 +11,9 @@ on:
 permissions:
   contents: read
 
+env:
+  ALMUNEER_DEMO_API: https://br-flat-leaf-ax492ag7-almuneerdemo.compute.c-4.us-east-2.aws.neon.tech
+
 jobs:
   windows-installer:
     runs-on: windows-latest
@@ -24,6 +27,16 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Smoke test demo backend
+        shell: pwsh
+        run: |
+          $health = Invoke-RestMethod -Uri "$env:ALMUNEER_DEMO_API/health" -Method Get -TimeoutSec 60
+          if ($health.status -ne 'ok') { throw 'Demo backend health check failed' }
+          if ($health.demoTenantReady -ne $true) { throw 'Demo tenant is not ready' }
+          $cors = Invoke-WebRequest -Uri "$env:ALMUNEER_DEMO_API/health" -Method Options -Headers @{ Origin='file://'; 'Access-Control-Request-Method'='GET' } -TimeoutSec 60
+          if ($cors.StatusCode -ne 204) { throw 'CORS preflight failed' }
+          Write-Host "Demo backend PASS: $($health.service)"
+
       - name: Extract approved Windows build source
         shell: pwsh
         run: |
@@ -33,10 +46,28 @@ jobs:
           Expand-Archive -Path 'almuneer-windows-build-source.zip' -DestinationPath 'build' -Force
           if (!(Test-Path 'build/package.json')) { throw 'Invalid source archive: package.json missing' }
 
-      - name: Pin Electron version for reproducible packaging
-        working-directory: build
+      - name: Harden desktop file protocol paths
         shell: pwsh
-        run: npm pkg set devDependencies.electron=38.0.0 -w @almuneer/desktop
+        run: |
+          $vite = Get-Content 'build/apps/web/vite.config.ts' -Raw
+          $vite = $vite.Replace("defineConfig({plugins:[react()]", "defineConfig({base:'./',plugins:[react()]")
+          Set-Content 'build/apps/web/vite.config.ts' $vite -NoNewline
+          $main = Get-Content 'build/apps/web/src/main.tsx' -Raw
+          $main = $main.Replace('src="/logo.png"','src="./logo.png"')
+          $main = $main.Replace('href="/student"','href="?portal=student"')
+          $old = "if ('serviceWorker' in navigator) window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js').catch(()=>{});});`nconst root=document.getElementById('root')!;`ncreateRoot(root).render(<React.StrictMode>{window.location.pathname.startsWith('/student')?<StudentPortal/>:<AdminShell/>}</React.StrictMode>);"
+          $new = "if (location.protocol !== 'file:' && 'serviceWorker' in navigator) window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{});});`nconst root=document.getElementById('root')!;`nconst isStudentPortal=new URLSearchParams(window.location.search).get('portal')==='student'||window.location.pathname.startsWith('/student');`ncreateRoot(root).render(<React.StrictMode>{isStudentPortal?<StudentPortal/>:<AdminShell/>}</React.StrictMode>);"
+          if (!$main.Contains($old)) { throw 'Expected desktop routing footer not found' }
+          $main = $main.Replace($old,$new)
+          Set-Content 'build/apps/web/src/main.tsx' $main -NoNewline
+
+      - name: Pin Electron version for reproducible packaging
+        shell: pwsh
+        run: |
+          $path = 'build/apps/desktop/package.json'
+          $json = Get-Content $path -Raw | ConvertFrom-Json
+          $json.devDependencies.electron = '38.0.0'
+          $json | ConvertTo-Json -Depth 20 | Set-Content $path
 
       - name: Install dependencies and create lockfile
         working-directory: build
@@ -48,22 +79,28 @@ jobs:
         shell: pwsh
         run: npm run build -w @almuneer/api-client
 
-      - name: Build Web
+      - name: Build connected Web
         working-directory: build
         shell: pwsh
+        env:
+          VITE_API_BASE_URL: ${{ env.ALMUNEER_DEMO_API }}
         run: npm run build -w @almuneer/web
 
-      - name: Verify Web output
+      - name: Verify connected Web output
         shell: pwsh
         run: |
           if (!(Test-Path 'build/apps/web/dist/index.html')) { throw 'Web dist/index.html missing' }
+          $html = Get-Content 'build/apps/web/dist/index.html' -Raw
+          if ($html -match 'src="/assets/' -or $html -match 'href="/assets/') { throw 'Web assets are not file-protocol relative' }
+          $js = (Get-ChildItem 'build/apps/web/dist/assets' -Filter '*.js' | Get-Content -Raw) -join "`n"
+          if (!$js.Contains('br-flat-leaf-ax492ag7-almuneerdemo.compute.c-4.us-east-2.aws.neon.tech')) { throw 'Connected API URL missing from Web bundle' }
 
       - name: Build Windows NSIS installer
         working-directory: build
         shell: pwsh
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npx electron-builder --projectDir apps/desktop --win nsis --publish never
+        run: npm run build:win -w @almuneer/desktop -- --publish never
 
       - name: Verify installer
         shell: pwsh
@@ -75,7 +112,7 @@ jobs:
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: Almuneer-Windows-Installer
+          name: Almuneer-Windows-Connected-Installer
           path: build/apps/desktop/dist/*.exe
           if-no-files-found: error
           retention-days: 30
@@ -83,7 +120,7 @@ jobs:
       - name: Upload build evidence
         uses: actions/upload-artifact@v4
         with:
-          name: Almuneer-Windows-Build-Evidence
+          name: Almuneer-Windows-Connected-Evidence
           path: |
             build/package-lock.json
             build/apps/web/dist/**
