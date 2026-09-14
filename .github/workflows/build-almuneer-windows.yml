@@ -1,0 +1,88 @@
+name: Build AlMuneer Windows Installer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'almuneer-windows-build-source.zip'
+      - '.github/workflows/build-almuneer-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'build/package-lock.json'
+        continue-on-error: true
+
+      - name: Extract approved Windows build source
+        shell: pwsh
+        run: |
+          if (!(Test-Path 'almuneer-windows-build-source.zip')) { throw 'almuneer-windows-build-source.zip is missing from repository root' }
+          if (Test-Path 'build') { Remove-Item 'build' -Recurse -Force }
+          New-Item -ItemType Directory -Path 'build' | Out-Null
+          Expand-Archive -Path 'almuneer-windows-build-source.zip' -DestinationPath 'build' -Force
+          if (!(Test-Path 'build/package.json')) { throw 'Invalid source archive: package.json missing' }
+
+      - name: Install dependencies and create lockfile
+        working-directory: build
+        shell: pwsh
+        run: npm install --no-audit --no-fund
+
+      - name: Build API client
+        working-directory: build
+        shell: pwsh
+        run: npm run build -w @almuneer/api-client
+
+      - name: Build Web
+        working-directory: build
+        shell: pwsh
+        run: npm run build -w @almuneer/web
+
+      - name: Verify Web output
+        shell: pwsh
+        run: |
+          if (!(Test-Path 'build/apps/web/dist/index.html')) { throw 'Web dist/index.html missing' }
+
+      - name: Build Windows NSIS installer
+        working-directory: build
+        shell: pwsh
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run build:win -w @almuneer/desktop
+
+      - name: Verify installer
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path 'build/apps/desktop/dist' -Filter '*.exe' -Recurse
+          if ($files.Count -lt 1) { throw 'Windows installer EXE was not produced' }
+          $files | ForEach-Object { Write-Host "Installer: $($_.FullName) Size=$($_.Length)" }
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Almuneer-Windows-Installer
+          path: build/apps/desktop/dist/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload lockfile evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: Almuneer-Windows-Build-Evidence
+          path: |
+            build/package-lock.json
+            build/apps/web/dist/**
+          retention-days: 30
