@@ -1,0 +1,27 @@
+name: Neon Backend Smoke Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/neon-backend-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Test Neon function and database
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://br-red-mode-axhaubax-depstest.compute.c-4.us-east-2.aws.neon.tech/'
+          echo "Testing $URL"
+          BODY=$(curl --fail --silent --show-error --retry 4 --retry-delay 2 --max-time 30 "$URL")
+          echo "$BODY"
+          echo "$BODY" | grep -q '"status":"ok"'
+          echo "$BODY" | grep -q '"db":1'
